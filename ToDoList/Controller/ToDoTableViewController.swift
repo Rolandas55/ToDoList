@@ -19,6 +19,7 @@ class ToDoTableViewController: UITableViewController {
         guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {return}
         managedObjectContext = appDelegate.persistentContainer.viewContext
         loadCoreData()
+        
         // Uncomment the following line to preserve selection between presentations
         // self.clearsSelectionOnViewWillAppear = false
         
@@ -54,15 +55,35 @@ class ToDoTableViewController: UITableViewController {
     }
     
     @IBAction func deleteAllItemsTapped(_ sender: Any) {
-        deleteAllCoreData()
+        let alertController = UIAlertController(title: "Delete", message: "everything from To Do list will be deleted", preferredStyle: .alert)
+        let addActionButton = UIAlertAction(title: "OK", style: .default) { addAction in
+            self.deleteAllCoreData()
+        }
+        let cancelActionButton = UIAlertAction(title: "Cancel", style: .destructive)
+        alertController.addAction(addActionButton)
+        alertController.addAction(cancelActionButton)
+        present(alertController, animated: true)
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        tableView.isEditing = true
+    }
+    
+    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
+        return UITableViewCell.EditingStyle.none
+    }
+    
+    override func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
+        return false
+    }
 }
 
 // MARK: - CoreData logic
 extension ToDoTableViewController {
     func loadCoreData() {
         let request: NSFetchRequest<ToDoList> = ToDoList.fetchRequest()
+        let sort = NSSortDescriptor(key: "orderIndex", ascending: true)
+        request.sortDescriptors = [sort]
         
         do {
             let result = try managedObjectContext?.fetch(request)
@@ -89,7 +110,7 @@ extension ToDoTableViewController {
         } catch {
             fatalError("Error in deleting Items")
         }
-        loadCoreData()
+        saveCoreData()
     }
 }
 
@@ -137,21 +158,21 @@ extension ToDoTableViewController {
          }
          saveCoreData()
      }
-    
-    /*
+
      // Override to support rearranging the table view.
      override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
-     
+         toDoLists.swapAt(fromIndexPath.row, to.row)
+         for(index, cell) in toDoLists.enumerated() {
+             cell.orderIndex = Int32(index)
+         }
+         saveCoreData()
      }
-     */
     
-    /*
      // Override to support conditional rearranging of the table view.
      override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
      // Return false if you do not want the item to be re-orderable.
      return true
      }
-     */
     
     /*
      // MARK: - Navigation
