@@ -11,14 +11,15 @@ import CoreData
 class ToDoTableViewController: UITableViewController {
     
     var managedObjectContext: NSManagedObjectContext?
-    var toDos: [String] = []
     var toDoLists = [ToDoList]()
+    private var cellID = "toDoCell"
     
     override func viewDidLoad() {
         super.viewDidLoad()
         guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {return}
         managedObjectContext = appDelegate.persistentContainer.viewContext
         loadCoreData()
+        setupView()
         
         // Uncomment the following line to preserve selection between presentations
         // self.clearsSelectionOnViewWillAppear = false
@@ -27,34 +28,32 @@ class ToDoTableViewController: UITableViewController {
         // self.navigationItem.rightBarButtonItem = self.editButtonItem
     }
     
-    @IBAction func addNewItemTapped(_ sender: Any) {
+    @objc func addNewItem() {
         let alertController = UIAlertController(title: "To Do List", message: "Do you want to add new item?", preferredStyle: .alert)
-        alertController.addTextField { titleField in
-            titleField.placeholder = "Your title here..."
-        }
-        alertController.addTextField { textFieldValue in
-            textFieldValue.placeholder = "Your item here..."
-            print(textFieldValue)
-        }
-        let addActionButton = UIAlertAction(title: "Add", style: .default) { addActions in
-            let titleField = alertController.textFields?.first
-            let textField = alertController.textFields?.last
-            let entity = NSEntityDescription.entity(forEntityName: "ToDoList", in: self.managedObjectContext!)
-            let list = NSManagedObject(entity: entity!, insertInto: self.managedObjectContext)
-            list.setValue(titleField?.text, forKey: "title")
-            list.setValue(textField?.text, forKey: "item")
-            self.saveCoreData()
-            //            self.toDos.append(textField!.text!)
-            //            self.tableView.reloadData()
-        }
-        let cancelActionButton = UIAlertAction(title: "Cancel", style: .destructive)
-        alertController.addAction(addActionButton)
-        alertController.addAction(cancelActionButton)
+                alertController.addTextField { titleField in
+                    titleField.placeholder = "Your title here..."
+                }
+                alertController.addTextField { textFieldValue in
+                    textFieldValue.placeholder = "Your item here..."
+                    print(textFieldValue)
+                }
+                let addActionButton = UIAlertAction(title: "Add", style: .default) { addActions in
+                    let titleField = alertController.textFields?.first
+                    let textField = alertController.textFields?.last
+                    let entity = NSEntityDescription.entity(forEntityName: "ToDoList", in: self.managedObjectContext!)
+                    let list = NSManagedObject(entity: entity!, insertInto: self.managedObjectContext)
+                    list.setValue(titleField?.text, forKey: "title")
+                    list.setValue(textField?.text, forKey: "item")
+                    self.saveCoreData()
+                }
+                let cancelActionButton = UIAlertAction(title: "Cancel", style: .destructive)
+                alertController.addAction(addActionButton)
+                alertController.addAction(cancelActionButton)
         
-        present(alertController, animated: true)
+                present(alertController, animated: true)
     }
     
-    @IBAction func deleteAllItemsTapped(_ sender: Any) {
+    @objc func deleteAllItems() {
         let alertController = UIAlertController(title: "Delete", message: "everything from To Do list will be deleted", preferredStyle: .alert)
         let addActionButton = UIAlertAction(title: "OK", style: .default) { addAction in
             self.deleteAllCoreData()
@@ -65,16 +64,98 @@ class ToDoTableViewController: UITableViewController {
         present(alertController, animated: true)
     }
     
-    override func viewWillAppear(_ animated: Bool) {
-        tableView.isEditing = true
+    @objc func togglEditMode() {
+        tableView.isEditing.toggle()
     }
     
-    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
-        return UITableViewCell.EditingStyle.none
+    @objc func longPress(sender: UILongPressGestureRecognizer) {
+        let detailViewController = DetailViewController()
+        if sender.state == UIGestureRecognizer.State.began {
+            let touchPath = sender.location(in: tableView)
+            if let indexPath = tableView.indexPathForRow(at: touchPath) {
+                print(indexPath)
+                navigationController?.pushViewController(detailViewController, animated: true)
+                if let string = toDoLists[indexPath.row].title {
+                    detailViewController.toDoTitle = string
+                }
+                if let string = toDoLists[indexPath.row].item {
+                    detailViewController.toDoSubtitle = string
+                }
+                detailViewController.todoCompleted = toDoLists[indexPath.row].completed
+                //basicActionSheet(title: toDoLists[indexPath.row].item, message: "Completed: \(toDoLists[indexPath.row].completed)")
+            }
+        }
+    }
+    
+    private func setupView() {
+        view.backgroundColor = .secondarySystemBackground
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellID)
+        let addBarButtonItem = UIBarButtonItem(title: "Add", style: .done, target: self, action: #selector(addNewItem))
+        let deleteBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "trash.fill"), style: .done, target: self, action: #selector(deleteAllItems))
+        let editBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "square"), style: .done, target: self, action: #selector(togglEditMode))
+        self.navigationItem.rightBarButtonItems = [addBarButtonItem, editBarButtonItem]
+        self.navigationItem.leftBarButtonItem = deleteBarButtonItem
+        
+        let longPressRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPress))
+        view.addGestureRecognizer(longPressRecognizer)
+        
+        setupNavigationBarView()
+    }
+    
+    private func setupNavigationBarView() {
+        title = "To Do"
+        let titleImage = UIImage(systemName: "bag.badge.plus")
+        let imageView = UIImageView(image: titleImage)
+        self.navigationItem.titleView = imageView
+        
+        navigationController?.navigationBar.largeTitleTextAttributes = [.foregroundColor: UIColor.label]
+        navigationController?.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.label]
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationController?.navigationBar.tintColor = .label
     }
     
     override func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
         return false
+    }
+}
+
+extension UITableView {
+    func setEmptyView(title: String, message: String) {
+        let emptyView = UIView(frame: CGRect(x: self.center.x, y: self.center.y, width: self.bounds.size.width, height: self.bounds.size.height))
+        
+        let titleLabel = UILabel()
+        let messageLabel = UILabel()
+        
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        titleLabel.textColor = UIColor.label
+        titleLabel.font = UIFont(name: "GillSans", size: 18)
+        
+        messageLabel.textColor = UIColor.secondaryLabel
+        messageLabel.font = UIFont(name: "GillSans", size: 16)
+        
+        emptyView.addSubview(titleLabel)
+        emptyView.addSubview(messageLabel)
+        
+        titleLabel.centerYAnchor.constraint(equalTo: emptyView.centerYAnchor).isActive = true
+        titleLabel.centerXAnchor.constraint(equalTo: emptyView.centerXAnchor).isActive = true
+        
+        messageLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20).isActive = true
+        messageLabel.leftAnchor.constraint(equalTo: emptyView.leftAnchor, constant: 20).isActive = true
+        messageLabel.rightAnchor.constraint(equalTo: emptyView.rightAnchor, constant: 20).isActive = true
+        
+        titleLabel.text = title
+        messageLabel.text = message
+        
+        messageLabel.numberOfLines = 0
+        messageLabel.textAlignment = .center
+        
+        self.backgroundView = emptyView
+    }
+    
+    func restoreTableViewStyle() {
+        self.backgroundView = nil
     }
 }
 
@@ -112,24 +193,37 @@ extension ToDoTableViewController {
         }
         saveCoreData()
     }
+    
+    func basicActionSheet(title: String?, message: String?) {
+        let actionSheet = UIAlertController(title: title, message: message, preferredStyle: .actionSheet)
+        let cancelAction: UIAlertAction = UIAlertAction(title: "Cancel", style: .cancel)
+        
+        actionSheet.overrideUserInterfaceStyle = .dark
+        actionSheet.addAction(cancelAction)
+        self.present(actionSheet, animated: true)
+    }
 }
 
 // MARK: - Table view data source
 extension ToDoTableViewController {
-    //    override func numberOfSections(in tableView: UITableView) -> Int {
-    //        // #warning Incomplete implementation, return the number of sections
-    //        return toDos.count
-    //    }
+//        override func numberOfSections(in tableView: UITableView) -> Int {
+//            // #warning Incomplete implementation, return the number of sections
+//            return toDos.count
+//        }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        // #warning Incomplete implementation, return the number of rows
+        if toDoLists.count == 0 {
+            tableView.setEmptyView(title: "Your To Do is Empty", message: "Please press Add to create a new to do item")
+        } else {
+            tableView.restoreTableViewStyle()
+        }
         return toDoLists.count
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "toDoCell", for: indexPath)
-        
+        let cell = tableView.dequeueReusableCell(withIdentifier: cellID, for: indexPath)
         let toDoList = toDoLists[indexPath.row]
+        
         cell.textLabel?.text = toDoLists[indexPath.row].title
         cell.detailTextLabel?.text = toDoLists[indexPath.row].item
         cell.accessoryType = toDoList.completed ? .checkmark : .none
